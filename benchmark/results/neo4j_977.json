@@ -1,0 +1,10 @@
+{
+  "Q1": {"median_s": 24.5976, "min_s": 24.2092, "runs": 3},
+  "Q2": {"median_s": 9.4216, "min_s": 8.1342, "runs": 3},
+  "Q3": {"median_s": 10.7875, "min_s": 10.7308, "runs": 3},
+  "Q4": {"timeout_s": 90.0},
+  "Q5": {"median_s": 8.9589, "min_s": 7.9310, "runs": 3},
+  "Q6": {"median_s": 0.0177, "min_s": 0.0177, "runs": 3},
+  "Q7": {"median_s": 12.2816, "min_s": 12.2546, "runs": 3},
+  "Q8": {"median_s": 12.3848, "min_s": 11.9688, "runs": 3}
+}
