@@ -1,0 +1,10 @@
+{
+  "Q1": {"median_s": 61.4826, "min_s": 61.1555, "runs": 3},
+  "Q2": {"median_s": 12.4579, "min_s": 12.2219, "runs": 3},
+  "Q3": {"median_s": 40.3206, "min_s": 39.9225, "runs": 3},
+  "Q4": {"median_s": 9.7186, "min_s": 9.6161, "runs": 3},
+  "Q5": {"median_s": 9.5675, "min_s": 9.5486, "runs": 3},
+  "Q6": {"median_s": 0.0021, "min_s": 0.0020, "runs": 3},
+  "Q7": {"skipped": "clustering does not converge at this scale"},
+  "Q8": {"median_s": 16.6810, "min_s": 16.6208, "runs": 3}
+}
