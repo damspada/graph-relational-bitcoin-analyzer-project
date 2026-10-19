@@ -6,7 +6,7 @@ n_blocks,metric,query,value
 50,query_median_s,Q1,0.7255642899999657
 50,query_median_s,Q2,0.44384966799952963
 50,query_median_s,Q3,0.5605786739997711
-50,query_timeout,Q4,90.0
+50,query_median_s,Q4,0.13695201000518864
 50,query_median_s,Q5,0.4087981889988441
 50,query_median_s,Q6,0.008163382999555324
 50,query_median_s,Q7,0.6647216589990421
@@ -18,7 +18,7 @@ n_blocks,metric,query,value
 200,query_median_s,Q1,4.192142126999897
 200,query_median_s,Q2,1.9400844720003079
 200,query_median_s,Q3,2.5711293019994628
-200,query_timeout,Q4,90.0
+200,query_median_s,Q4,2.1311926120033604
 200,query_median_s,Q5,2.152047595000113
 200,query_median_s,Q6,0.013721700999667519
 200,query_median_s,Q7,3.184199115999945
@@ -29,7 +29,7 @@ n_blocks,metric,query,value
 500,query_median_s,Q1,10.742832738000288
 500,query_median_s,Q2,4.494968429999062
 500,query_median_s,Q3,5.815358171999833
-500,query_timeout,Q4,90.0
+500,query_median_s,Q4,2.070221337999101
 500,query_median_s,Q5,4.327622254999369
 500,query_median_s,Q6,0.014154299999063369
 500,query_median_s,Q8,25.085194384000715
@@ -39,7 +39,7 @@ n_blocks,metric,query,value
 977,query_median_s,Q1,21.678414138001244
 977,query_median_s,Q2,8.678456639001524
 977,query_median_s,Q3,12.225544726999942
-977,query_timeout,Q4,90.0
+977,query_median_s,Q4,13.755232297000475
 977,query_median_s,Q5,8.91077329700056
 977,query_median_s,Q6,0.016616491997410776
 977,query_median_s,Q8,64.04489512600048

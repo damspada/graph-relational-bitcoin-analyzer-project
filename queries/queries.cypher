@@ -44,35 +44,26 @@ LIMIT 100;
 
 // ============================================================
 // Q4: Fund tracing: follows the flow of funds from a starting address,
-// N hops. Native traversal: no recursive CTE needed, compare with the SQL
-// equivalent (Q4 in queries.sql) for the project's central case study.
+// up to 8 hops, output by output, exactly like the recursive CTE of Q4 in
+// queries.sql.
 //
-// A logical "hop" is Address -> Output -> Input -> Transaction -> Output
-// -> Address (5 relationships for each transfer of value, because
-// Output/Input are nodes in their own right).
-//
-// Technical note (empirically verified): a first attempt with
-// apoc.path.expandConfig and a relationshipFilter with mixed directions
-// (e.g. "HAS_INPUT<,HAS_INPUT>" in the same filter) does NOT correctly
-// explore all the branches of the graph: confirmed with isolated and
-// incremental tests against a real Neo4j instance, not just assumed.
-// Replaced with a Quantified Path Pattern (native Cypher 5.x syntax, no
-// APOC dependency for this query), which repeats the fixed 5-relationship
-// pattern {1,8} times.
-//
-// Practical limit observed: on nodes with even moderate connectivity
-// (~1000 outputs), the query times out beyond 2-3 hops of depth because
-// of the combinatorial explosion in the number of traversable paths. This
-// must be measured systematically in Phase 4 (at what depth/connectivity
-// it becomes impractical), not assumed: it is a second concrete case
-// study on the cost of the compared models, in addition to the
-// connected-components of the clustering.
+// One hop is Output <- SPENDS - Input <- HAS_INPUT - Transaction
+// - HAS_OUTPUT -> Output (3 relationships): from an output to the input
+// that spends it (at most one, an output is spent only once) and from
+// there to all the outputs of the spending transaction. The address of
+// each output reached is read at the end, with an OPTIONAL MATCH because
+// non-standard scripts have no address (NULL, as on the SQL side).
+// {0,8} includes depth 0, the outputs of the starting address, like the
+// base case of the CTE. Verified: same rows as the SQL query, on every
+// address of the demo dataset and on the full dataset.
 // ============================================================
-MATCH path = (start:Address {address: $start_address})
-  ((:Address)<-[:LOCKED_TO]-(:Output)<-[:SPENDS]-(:Input)<-[:HAS_INPUT]-(:Transaction)-[:HAS_OUTPUT]->(:Output)-[:LOCKED_TO]->(:Address)){1,8}
-RETURN DISTINCT last(nodes(path)).address AS address, length(path) / 5 AS depth
-ORDER BY depth
-LIMIT 200;
+MATCH (:Address {address: $start_address})<-[:LOCKED_TO]-(o:Output)
+MATCH path = (o)
+  ((:Output)<-[:SPENDS]-(:Input)<-[:HAS_INPUT]-(:Transaction)-[:HAS_OUTPUT]->(:Output)){0,8}
+  (reached:Output)
+OPTIONAL MATCH (reached)-[:LOCKED_TO]->(a:Address)
+RETURN DISTINCT a.address AS address, length(path) / 3 AS depth
+ORDER BY depth;
 
 // ============================================================
 // Q5: Most active addresses (hub detection): by number of outputs received.

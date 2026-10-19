@@ -18,7 +18,7 @@ who precomputed more.
 | Q1 transaction fee | 61.5 s | 24.6 s | Neo4j 2.5x |
 | Q2 unspent outputs | 12.5 s | 9.4 s | Neo4j 1.3x |
 | Q3 balance per address | 40.3 s | 10.8 s | Neo4j 3.7x |
-| Q4 fund tracing | 9.7 s | timeout | SQLite |
+| Q4 fund tracing | 9.7 s | 13.8 s | SQLite 1.4x |
 | Q5 hub detection | 9.6 s | 9.0 s | tie |
 | Q6 main chain vs orphans | 2.1 ms | 17.7 ms | SQLite 8.4x |
 | Q7 balance per wallet | n/a | 12.3 s | Neo4j only |

@@ -111,21 +111,24 @@ LIMIT 15;
 
 // ------------------------------------------------------------
 // 8. Q4, FUND TRACING: follow the money
-//    The flagship case for the graph model. One "hop" is the fixed
-//    path Address → Output → Input → Transaction → Output → Address
-//    (5 edges), repeated up to 4 times.
-//    The demo dataset contains a real 6-hop chain.
+//    The flagship case for the graph model. One "hop" goes from an
+//    output to the input that spends it, then to the outputs of that
+//    transaction (3 edges), up to 8 times: the same walk as the
+//    recursive CTE in SQL. The address of each output reached is shown
+//    at the end. The demo dataset contains a real 6-hop chain.
 // ------------------------------------------------------------
 MATCH (start:Address)<-[:LOCKED_TO]-(o:Output)<-[:SPENDS]-(:Input)
 WITH start, COUNT(*) AS spent_count
 ORDER BY spent_count DESC
 LIMIT 1
-MATCH path = (start)
-  ((:Address)<-[:LOCKED_TO]-(:Output)<-[:SPENDS]-(:Input)
-   <-[:HAS_INPUT]-(:Transaction)-[:HAS_OUTPUT]->(:Output)
-   -[:LOCKED_TO]->(:Address)){1,4}
-RETURN path
-LIMIT 12;
+MATCH (start)<-[:LOCKED_TO]-(first:Output)
+MATCH path = (first)
+  ((:Output)<-[:SPENDS]-(:Input)<-[:HAS_INPUT]-(:Transaction)
+   -[:HAS_OUTPUT]->(:Output)){1,8}
+  (reached:Output)
+OPTIONAL MATCH owner = (reached)-[:LOCKED_TO]->(:Address)
+RETURN path, owner
+LIMIT 25;
 
 
 // ------------------------------------------------------------
