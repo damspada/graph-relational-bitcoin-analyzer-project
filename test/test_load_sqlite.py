@@ -108,7 +108,6 @@ class TestLoadSqlite(unittest.TestCase):
             ).fetchall()
         }
         expected = {
-            "idx_blocks_prev_hash",
             "idx_blocks_timestamp",
             "idx_transactions_block_hash",
             "idx_tx_outputs_address",

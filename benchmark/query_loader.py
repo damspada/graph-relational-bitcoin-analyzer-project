@@ -4,9 +4,10 @@ queries/queries.cypher, so that they can be executed one at a time in the benchm
 The queries are delimited by "QN:" markers inside comment blocks;
 this module separates them keeping the association with the number.
 
-Q4 (fund tracing) and Q8 (USD value) have parameters; Q7 (wallet balance)
-requires the clustering to have already been executed. The benchmark decides
-which ones to include based on the context (see run_benchmark.py).
+Q4 (fund tracing) has a parameter, the starting address; Q7 (wallet
+balance) requires the clustering to have already been executed. The
+benchmark decides which ones to include based on the context (see
+bench_queries.py).
 """
 import re
 

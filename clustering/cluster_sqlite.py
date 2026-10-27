@@ -39,11 +39,13 @@ MAX_ROUNDS = 50  # explicit limit: without it, a very connected cluster
 def build_coowned_table(conn: sqlite3.Connection) -> None:
     """Materializes the pairs of co-owned addresses (symmetric edge) into
     a temporary table, with an index to make the lookup of neighbors
-    efficient during the propagation."""
+    efficient during the propagation. DISTINCT keeps each pair once, like
+    MERGE on the Neo4j side: two addresses spent together in many
+    transactions would otherwise repeat the same edge in every round."""
     conn.executescript("""
         DROP TABLE IF EXISTS coowned_sym;
         CREATE TEMP TABLE coowned_sym AS
-        SELECT
+        SELECT DISTINCT
             CASE WHEN o1.address < o2.address THEN o1.address ELSE o2.address END AS address,
             CASE WHEN o1.address < o2.address THEN o2.address ELSE o1.address END AS neighbor
         FROM tx_inputs i1
@@ -76,7 +78,10 @@ def propagate(conn: sqlite3.Connection, max_rounds: int = MAX_ROUNDS) -> int:
     """Runs label propagation rounds until there are no more updates or
     max_rounds is reached. Each round is a single UPDATE (not recursive):
     every address takes the minimum between its own cluster_id and that of
-    its direct neighbors. Returns the number of rounds actually executed."""
+    its direct neighbors (the EXISTS guard only touches addresses with a
+    smaller neighbor, so the MIN is never NULL). Returns the number of
+    rounds actually executed; raises RuntimeError if it does not converge,
+    so that a partial partition is never written to address_clusters."""
     for round_n in range(1, max_rounds + 1):
         changed = conn.execute("""
             UPDATE clusters_working
@@ -85,8 +90,6 @@ def propagate(conn: sqlite3.Connection, max_rounds: int = MAX_ROUNDS) -> int:
                 FROM coowned_sym cs
                 JOIN clusters_working c2 ON c2.address = cs.neighbor
                 WHERE cs.address = clusters_working.address
-                UNION ALL
-                SELECT clusters_working.cluster_id
             )
             WHERE EXISTS (
                 SELECT 1 FROM coowned_sym cs
@@ -99,9 +102,7 @@ def propagate(conn: sqlite3.Connection, max_rounds: int = MAX_ROUNDS) -> int:
         print(f"  round {round_n}: {changed} addresses updated", file=sys.stderr)
         if changed == 0:
             return round_n
-    print(f"  WARNING: limit of {max_rounds} rounds reached without convergence "
-          f"(possible on very large/dense clusters, e.g. exchange addresses)", file=sys.stderr)
-    return max_rounds
+    raise RuntimeError(f"limit of {max_rounds} rounds reached without convergence")
 
 
 def materialize_clusters(conn: sqlite3.Connection) -> int:
@@ -112,6 +113,10 @@ def materialize_clusters(conn: sqlite3.Connection) -> int:
         INSERT INTO address_clusters (address, cluster_id)
         SELECT address, cluster_id FROM clusters_working
     """)
+    # declared in schema.sql but created here, after the data, like the
+    # other secondary indexes: Q7 groups by cluster_id
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_address_clusters_cluster "
+                 "ON address_clusters(cluster_id)")
     conn.commit()
     return conn.execute("SELECT COUNT(*) FROM address_clusters").fetchone()[0]
 

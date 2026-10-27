@@ -54,11 +54,6 @@ FOR (i:Input) REQUIRE i.inputRef IS UNIQUE;
 CREATE INDEX block_timestamp IF NOT EXISTS
 FOR (b:Block) ON (b.timestamp);
 
-// Useful for the fund-tracing queries and to identify hubs/very active
-// addresses without doing a full scan on the edges.
-CREATE INDEX tx_size IF NOT EXISTS
-FOR (t:Transaction) ON (t.size);
-
 // --- Note on "external" Input/Output (coinbase, outside the time window) ---
 //
 // An Input node is always created anyway (it faithfully represents the raw

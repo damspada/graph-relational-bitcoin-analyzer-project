@@ -2,7 +2,7 @@ package pkg
 
 // Output represents a single transaction output.
 // Address can be an empty string if the script does not match
-// any standard pattern (OP_RETURN, non-standard multisig, custom scripts).
+// any standard pattern (OP_RETURN, custom/non-standard scripts).
 type Output struct {
 	Index   int    `json:"index"`
 	Address string `json:"address"`
@@ -19,11 +19,12 @@ type Input struct {
 
 // Transaction represents a transaction as it appears in the block,
 // with no derived field (no fee, no explicit is_coinbase: a tx is a
-// coinbase if Inputs is empty).
+// coinbase if its only input has an all-zero PrevTxid and PrevIndex
+// 4294967295).
 type Transaction struct {
-	Txid    string  `json:"txid"`
-	Size    int     `json:"size"`
-	Inputs  []Input `json:"inputs"`
+	Txid    string   `json:"txid"`
+	Size    int      `json:"size"`
+	Inputs  []Input  `json:"inputs"`
 	Outputs []Output `json:"outputs"`
 }
 

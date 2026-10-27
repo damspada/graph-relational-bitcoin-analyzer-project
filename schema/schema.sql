@@ -18,7 +18,6 @@ CREATE TABLE blocks (
 -- No FK on prev_hash -> blocks.hash: the predecessor of the first block of
 -- the downloaded window does not exist in the dataset by construction
 -- (a time window was downloaded, not the whole chain from the genesis).
-CREATE INDEX idx_blocks_prev_hash ON blocks(prev_hash);
 CREATE INDEX idx_blocks_timestamp ON blocks(timestamp);
 
 -- A transaction. txid is the natural key (cryptographic hash, unique by

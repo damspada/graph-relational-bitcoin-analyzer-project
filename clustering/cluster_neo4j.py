@@ -77,7 +77,8 @@ def build_coowned_edges(driver) -> int:
         # explicit transaction block provides it. The consume() forces the
         # full execution before continuing.
         session.run(CREATE_COOWNED_EDGES).consume()
-        result = session.run("MATCH ()-[r:COOWNED_WITH]-() RETURN COUNT(r) AS n")
+        # directed pattern: the undirected one would count every edge twice
+        result = session.run("MATCH ()-[r:COOWNED_WITH]->() RETURN COUNT(r) AS n")
         return result.single()["n"]
 
 

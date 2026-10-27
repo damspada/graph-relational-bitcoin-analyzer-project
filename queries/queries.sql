@@ -2,26 +2,37 @@
 -- They all compute derived data at query time (fee, UTXO, main chain),
 -- rather than storing it in the schema.
 -- Cypher equivalents in queries/queries.cypher, same order and numbering.
+-- No tie-break after the ORDER BY of the rankings: on the full dataset
+-- there is no tie at the LIMIT boundary of Q1, Q2, Q3 or Q5 (checked), and
+-- a tie-break on txid/address is free for SQLite, which has them in the
+-- row, but costs Neo4j a property read for every row before the LIMIT.
+
 
 -- ============================================================
 -- Q1: Fee of each transaction (excludes coinbase transactions, which have
 -- no fee by protocol construction: they do not spend a previous output).
+-- Same steps as the Cypher version: first the input sum, only for the
+-- transactions with at least one input that resolves to an output, then
+-- the output sum for those. Each sum is computed once per transaction:
+-- the CTEs are MATERIALIZED because otherwise SQLite inlines them and
+-- evaluates the correlated subqueries again in every column that uses
+-- them (checked with EXPLAIN QUERY PLAN).
 -- ============================================================
-SELECT
-    tx.txid,
-    (SELECT SUM(o.value) FROM tx_inputs i
-     JOIN tx_outputs o ON o.txid = i.prev_txid AND o.output_index = i.prev_output_index
-     WHERE i.txid = tx.txid AND i.prev_output_index != 4294967295) AS total_input,
-    (SELECT SUM(value) FROM tx_outputs WHERE txid = tx.txid) AS total_output,
-    (SELECT SUM(o.value) FROM tx_inputs i
-     JOIN tx_outputs o ON o.txid = i.prev_txid AND o.output_index = i.prev_output_index
-     WHERE i.txid = tx.txid AND i.prev_output_index != 4294967295)
-    - (SELECT SUM(value) FROM tx_outputs WHERE txid = tx.txid) AS fee
-FROM transactions tx
-WHERE EXISTS (
-    SELECT 1 FROM tx_inputs i
-    WHERE i.txid = tx.txid AND i.prev_output_index != 4294967295
+WITH with_input AS MATERIALIZED (
+    SELECT tx.txid,
+           (SELECT SUM(o.value) FROM tx_inputs i
+            JOIN tx_outputs o ON o.txid = i.prev_txid AND o.output_index = i.prev_output_index
+            WHERE i.txid = tx.txid AND i.prev_output_index != 4294967295) AS total_input
+    FROM transactions tx
+),
+amounts AS MATERIALIZED (
+    SELECT w.txid, w.total_input,
+           (SELECT SUM(value) FROM tx_outputs WHERE txid = w.txid) AS total_output
+    FROM with_input w
+    WHERE w.total_input IS NOT NULL
 )
+SELECT txid, total_input, total_output, total_input - total_output AS fee
+FROM amounts
 ORDER BY fee DESC
 LIMIT 100;
 
@@ -38,26 +49,20 @@ ORDER BY o.value DESC
 LIMIT 100;
 
 -- ============================================================
--- Q3: Balance per address (received - spent), positive balances only.
+-- Q3: Balance per address: the sum of its unspent outputs.
+-- Equivalent to received - spent (every output is either spent or not),
+-- but it needs one aggregation and an anti-join instead of two
+-- aggregations joined with a LEFT JOIN. Addresses with nothing left
+-- unspent have no rows, so only positive balances come out.
 -- ============================================================
-WITH received AS (
-    SELECT address, SUM(value) AS total_received
-    FROM tx_outputs WHERE address IS NOT NULL GROUP BY address
-),
-spent AS (
-    SELECT o.address, SUM(o.value) AS total_spent
-    FROM tx_outputs o
-    JOIN tx_inputs i ON i.prev_txid = o.txid AND i.prev_output_index = o.output_index
-    WHERE o.address IS NOT NULL GROUP BY o.address
+SELECT o.address, SUM(o.value) AS balance
+FROM tx_outputs o
+WHERE o.address IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM tx_inputs i
+    WHERE i.prev_txid = o.txid AND i.prev_output_index = o.output_index
 )
-SELECT
-    r.address,
-    r.total_received,
-    COALESCE(s.total_spent, 0) AS total_spent,
-    r.total_received - COALESCE(s.total_spent, 0) AS balance
-FROM received r
-LEFT JOIN spent s ON r.address = s.address
-WHERE r.total_received - COALESCE(s.total_spent, 0) > 0
+GROUP BY o.address
 ORDER BY balance DESC
 LIMIT 100;
 
@@ -131,45 +136,41 @@ FROM blocks b
 LEFT JOIN main_chain mc ON b.hash = mc.hash;
 
 -- ============================================================
--- Q7: Balance per WALLET (cluster of addresses), not per single address.
+-- Q7: Balance per WALLET (cluster of addresses), not per single address:
+-- the sum of the unspent outputs of all the addresses of the wallet.
 -- Requires address_clusters to be already populated (clustering/cluster_sqlite.py).
 -- ============================================================
-WITH received AS (
-    SELECT ac.cluster_id, SUM(o.value) AS total_received
-    FROM tx_outputs o
-    JOIN address_clusters ac ON ac.address = o.address
-    GROUP BY ac.cluster_id
-),
-spent AS (
-    SELECT ac.cluster_id, SUM(o.value) AS total_spent
-    FROM tx_outputs o
-    JOIN tx_inputs i ON i.prev_txid = o.txid AND i.prev_output_index = o.output_index
-    JOIN address_clusters ac ON ac.address = o.address
-    GROUP BY ac.cluster_id
+SELECT ac.cluster_id, SUM(o.value) AS wallet_balance
+FROM tx_outputs o
+JOIN address_clusters ac ON ac.address = o.address
+WHERE NOT EXISTS (
+    SELECT 1 FROM tx_inputs i
+    WHERE i.prev_txid = o.txid AND i.prev_output_index = o.output_index
 )
-SELECT
-    r.cluster_id,
-    r.total_received,
-    COALESCE(s.total_spent, 0) AS total_spent,
-    r.total_received - COALESCE(s.total_spent, 0) AS wallet_balance
-FROM received r
-LEFT JOIN spent s ON r.cluster_id = s.cluster_id
+GROUP BY ac.cluster_id
 ORDER BY wallet_balance DESC
 LIMIT 20;
 
 -- ============================================================
 -- Q8: USD value of each transaction at the time it happened
 -- (time-interval join with price_history, "closest price that is not
--- later").
+-- later"). The output sum is computed once per transaction: the CTE is
+-- MATERIALIZED because otherwise SQLite inlines it and evaluates the
+-- correlated subquery twice (checked with EXPLAIN QUERY PLAN).
 -- ============================================================
+WITH tx_value AS MATERIALIZED (
+    SELECT tx.txid, tx.block_hash,
+           (SELECT SUM(value) FROM tx_outputs WHERE txid = tx.txid) AS total_output_satoshi
+    FROM transactions tx
+)
 SELECT
-    tx.txid,
+    v.txid,
     b.timestamp,
     p.price_usd,
-    (SELECT SUM(value) FROM tx_outputs WHERE txid = tx.txid) AS total_output_satoshi,
-    (SELECT SUM(value) FROM tx_outputs WHERE txid = tx.txid) / 100000000.0 * p.price_usd AS total_output_usd
-FROM transactions tx
-JOIN blocks b ON b.hash = tx.block_hash
+    v.total_output_satoshi,
+    v.total_output_satoshi / 100000000.0 * p.price_usd AS total_output_usd
+FROM tx_value v
+JOIN blocks b ON b.hash = v.block_hash
 JOIN price_history p ON p.date_unix = (
     SELECT MAX(date_unix) FROM price_history WHERE date_unix <= b.timestamp
 )

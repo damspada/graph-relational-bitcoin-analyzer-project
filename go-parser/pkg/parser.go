@@ -94,7 +94,7 @@ func convertTx(tx *wire.MsgTx) Transaction {
 		// spend any real output: it is recognizable by the all-zero
 		// hash, and it is represented as-is anyway (pure translation,
 		// no interpretation: it is up to the queries to infer that it
-		// is a coinbase from an empty Inputs or from this pattern).
+		// is a coinbase from this pattern).
 		prevHash := in.PreviousOutPoint.Hash.String()
 		t.Inputs = append(t.Inputs, Input{
 			PrevTxid:  prevHash,
@@ -116,10 +116,12 @@ func convertTx(tx *wire.MsgTx) Transaction {
 }
 
 // extractAddress tries to derive the standard address from a scriptPubKey.
-// It covers P2PKH, P2SH, P2WPKH, P2WSH, P2TR (via the btcd library). If the
-// script does not match any standard pattern (OP_RETURN, bare multisig,
-// custom/non-standard scripts), it returns an empty string: this is a loss
-// of information accepted deliberately, not an error to handle.
+// It covers P2PKH, P2SH, P2WPKH, P2WSH, P2TR (via the btcd library). For
+// P2PK and bare multisig btcd returns the public keys: we keep the first
+// one, encoded as its P2PKH address. If the script does not match any
+// standard pattern (OP_RETURN, custom/non-standard scripts), it returns an
+// empty string: this is a loss of information accepted deliberately, not
+// an error to handle.
 func extractAddress(pkScript []byte) string {
 	_, addrs, _, err := txscript.ExtractPkScriptAddrs(pkScript, &chaincfg.MainNetParams)
 	if err != nil || len(addrs) == 0 {

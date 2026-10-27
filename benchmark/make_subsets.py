@@ -60,7 +60,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Generates JSONL sub-datasets at increasing sizes")
-    parser.add_argument("source", help="Path to the complete JSONL (e.g. go-parser/full_run.jsonl)")
+    parser.add_argument("source", help="Path to the complete JSONL (e.g. dataset.jsonl)")
     parser.add_argument("--sizes", type=int, nargs="+", default=[50, 200, 500, 1000, 2000, 4320],
                         help="Number of blocks for each size (default: 50 200 500 1000 2000 4320)")
     parser.add_argument("--out-dir", default="benchmark/subsets", help="Output folder")

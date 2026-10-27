@@ -30,7 +30,7 @@ multiplied by --repeats.
 
 The clustering IS computed per size and its own cost is recorded as
 cluster_s, because at full scale it is the dominant part of the Q7
-story. Pass --no-clustering to skip it and get the curve faster.
+story. Pass --cluster-sizes none to skip it and get the curve faster.
 """
 import argparse
 import csv

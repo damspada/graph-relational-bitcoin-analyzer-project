@@ -16,7 +16,6 @@ real incidence on the dataset is measured, instead of merely asserting that
 they exist.
 """
 import sqlite3
-import sys
 
 
 COINBASE_PREV_INDEX = 4294967295

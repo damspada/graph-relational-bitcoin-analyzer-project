@@ -6,7 +6,6 @@ from the same JSONL, every value must match exactly. A discrepancy
 indicates a bug in the loader (SQL or Neo4j), not a modelling difference:
 see quality/compare.py for the automatic comparison.
 """
-import sys
 
 from neo4j import GraphDatabase
 

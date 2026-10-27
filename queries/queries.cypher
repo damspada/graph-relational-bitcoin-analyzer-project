@@ -3,6 +3,11 @@
 // comparison. Model: (:Transaction)-[:HAS_OUTPUT]->(:Output)-[:LOCKED_TO]->(:Address),
 // (:Transaction)-[:HAS_INPUT]->(:Input)-[:SPENDS]->(:Output).
 // See schema/schema.cypher.
+// No tie-break after the ORDER BY of the rankings: on the full dataset
+// there is no tie at the LIMIT boundary of Q1, Q2, Q3 or Q5 (checked), and
+// a tie-break on txid/address is free for SQLite, which has them in the
+// row, but costs Neo4j a property read for every row before the LIMIT.
+
 
 // ============================================================
 // Q1: Fee of each transaction (excludes coinbase: prevIndex = 4294967295,
@@ -19,26 +24,27 @@ LIMIT 100;
 
 // ============================================================
 // Q2: UTXO: Output nodes with no Input spending them (no incoming
-// SPENDS relationship).
+// SPENDS relationship). The txid is read from outputRef ("txid:index"),
+// like SQL reads it from the row, without a hop to the Transaction. The
+// address is a separate node, so it is read only for the 100 outputs
+// that are kept, not for every unspent output.
 // ============================================================
-MATCH (t:Transaction)-[:HAS_OUTPUT]->(o:Output)
+MATCH (o:Output)
 WHERE NOT (:Input)-[:SPENDS]->(o)
-OPTIONAL MATCH (o)-[:LOCKED_TO]->(a:Address)
-RETURN t.txid, o.outputIndex, a.address, o.value
+WITH o
 ORDER BY o.value DESC
-LIMIT 100;
+LIMIT 100
+OPTIONAL MATCH (o)-[:LOCKED_TO]->(a:Address)
+RETURN split(o.outputRef, ':')[0] AS txid, o.outputIndex, a.address, o.value
+ORDER BY o.value DESC;
 
 // ============================================================
-// Q3: Balance per address (received - spent), positive balances only.
+// Q3: Balance per address: the sum of its unspent outputs (no incoming
+// SPENDS relationship). Same formulation as the SQL version.
 // ============================================================
 MATCH (a:Address)<-[:LOCKED_TO]-(o:Output)
-WITH a, o, EXISTS { (o)<-[:SPENDS]-(:Input) } AS is_spent
-WITH a,
-     SUM(o.value) AS total_received,
-     SUM(CASE WHEN is_spent THEN o.value ELSE 0 END) AS total_spent
-WITH a, total_received, total_spent, total_received - total_spent AS balance
-WHERE balance > 0
-RETURN a.address, total_received, total_spent, balance
+WHERE NOT (o)<-[:SPENDS]-(:Input)
+RETURN a.address, SUM(o.value) AS balance
 ORDER BY balance DESC
 LIMIT 100;
 
@@ -85,41 +91,41 @@ LIMIT 20;
 // arrow in the wrong direction wrongly marked 9 blocks out of 10 as
 // orphans on a real sample: verified and fixed against Neo4j.
 // ============================================================
-CALL {
+CALL () {
     MATCH (b:Block) RETURN MAX(b.timestamp) AS maxTimestamp
 }
 MATCH (tip:Block {timestamp: maxTimestamp})
-MATCH path = (tip)<-[:PREV_BLOCK*0..]-(ancestor:Block)
-WITH COLLECT(DISTINCT ancestor.hash) AS mainChainHashes
+MATCH (tip)<-[:PREV_BLOCK*0..]-(ancestor:Block)
+// the list holds the nodes, not their hashes: checking a node against it
+// compares node ids, not 64-character strings for every block
+WITH COLLECT(DISTINCT ancestor) AS mainChain
 MATCH (b:Block)
-RETURN b.hash, b.timestamp, NOT (b.hash IN mainChainHashes) AS is_orphan;
+RETURN b.hash, b.timestamp, NOT (b IN mainChain) AS is_orphan;
 
 // ============================================================
-// Q7: Balance per WALLET (cluster of addresses), not per single address.
+// Q7: Balance per WALLET (cluster of addresses), not per single address:
+// the sum of the unspent outputs of all the addresses of the wallet.
 // Requires clusterId to be already written by clustering/cluster_neo4j.py (gds.wcc).
 // ============================================================
 MATCH (a:Address)<-[:LOCKED_TO]-(o:Output)
-WHERE a.clusterId IS NOT NULL
-WITH a.clusterId AS clusterId, o, EXISTS { (o)<-[:SPENDS]-(:Input) } AS is_spent
-WITH clusterId,
-     SUM(o.value) AS total_received,
-     SUM(CASE WHEN is_spent THEN o.value ELSE 0 END) AS total_spent
-RETURN clusterId, total_received, total_spent, total_received - total_spent AS wallet_balance
+WHERE a.clusterId IS NOT NULL AND NOT (o)<-[:SPENDS]-(:Input)
+RETURN a.clusterId AS clusterId, SUM(o.value) AS wallet_balance
 ORDER BY wallet_balance DESC
 LIMIT 20;
 
 // ============================================================
 // Q8: USD value of each transaction at the time it happened
-// (time-interval join with PriceSnapshot).
+// (time-interval join with PriceSnapshot). PriceSnapshot has no edges,
+// so the closest earlier price is found like in SQL: the MAX date not
+// later than the block, then a lookup on the unique dateUnix.
 // ============================================================
 MATCH (b:Block)-[:CONTAINS]->(t:Transaction)-[:HAS_OUTPUT]->(o:Output)
 WITH t, b, SUM(o.value) AS total_output_satoshi
 MATCH (p:PriceSnapshot) WHERE p.dateUnix <= b.timestamp
-WITH t, b, total_output_satoshi, p
-ORDER BY p.dateUnix DESC
-WITH t, b, total_output_satoshi, COLLECT(p)[0] AS closest_price
-RETURN t.txid, b.timestamp, closest_price.priceUsd,
+WITH t, b, total_output_satoshi, MAX(p.dateUnix) AS closest_date
+MATCH (closest:PriceSnapshot {dateUnix: closest_date})
+RETURN t.txid, b.timestamp, closest.priceUsd,
        total_output_satoshi,
-       (total_output_satoshi / 100000000.0) * closest_price.priceUsd AS total_output_usd
+       (total_output_satoshi / 100000000.0) * closest.priceUsd AS total_output_usd
 ORDER BY total_output_usd DESC
 LIMIT 20;

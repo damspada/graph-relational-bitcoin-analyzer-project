@@ -21,7 +21,6 @@ SCHEMA_PATH = Path(__file__).parent.parent / "schema" / "schema.sql"
 # in schema.sql as a reference for the logical schema; here they are
 # extracted and executed only at the end of the load.
 SECONDARY_INDEXES = [
-    "CREATE INDEX idx_blocks_prev_hash ON blocks(prev_hash)",
     "CREATE INDEX idx_blocks_timestamp ON blocks(timestamp)",
     "CREATE INDEX idx_transactions_block_hash ON transactions(block_hash)",
     "CREATE INDEX idx_tx_outputs_address ON tx_outputs(address)",
@@ -53,6 +52,11 @@ def init_db(db_path: str) -> sqlite3.Connection:
         s = "\n".join(code_lines).strip()
         if not s or s.upper().startswith("CREATE INDEX"):
             continue  # secondary indexes created at the end of the load, see SECONDARY_INDEXES
+        if s.upper().startswith("PRAGMA"):
+            # schema.sql turns foreign_keys ON: here it would undo the OFF
+            # above and check every row of the bulk load. They are turned
+            # on and validated in one go at the end (see load()).
+            continue
         conn.execute(s)
     return conn
 

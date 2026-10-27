@@ -27,7 +27,7 @@ import sqlite3
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse
 
 DB_PATH = None
 QUERIES = {}
@@ -381,7 +381,7 @@ def main():
     conn.close()
 
     print(f"Database:  {DB_PATH}")
-    print(f"Tables:    " + ", ".join(f"{t['name']}({t['rows']})" for t in tables))
+    print("Tables:    " + ", ".join(f"{t['name']}({t['rows']})" for t in tables))
     print(f"Queries:   {', '.join(sorted(QUERIES)) or 'none found'}")
     print(f"\n  →  http://127.0.0.1:{args.port}\n")
     ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()

@@ -27,9 +27,8 @@ The web UI lists the tables, runs Q1-Q8 read straight from
 `queries/queries.sql`, and has a free SQL editor (`Ctrl/Cmd + Enter`).
 The database is opened read-only and only accepts SELECT/WITH/EXPLAIN.
 
-Cypher queries are in `demo_queries.cypher`, numbered in presentation
-order: the whole graph, the block chain, one transaction, a coinbase,
-then Q2, Q3, Q4, Q5, Q7, Q8 and a final cross-check.
+The Cypher versions of Q1-Q8 are in `queries/queries.cypher`, ready to
+paste into Neo4j Browser.
 
 ## Suggested order
 
@@ -46,7 +45,6 @@ then Q2, Q3, Q4, Q5, Q7, Q8 and a final cross-check.
 ## Rebuild
 
 ```shell
-python3 demo/make_demo_dataset.py --target-tx 50
 rm -f demo/demo.sqlite
 cd loader && python3 load_sqlite.py ../demo/demo_dataset.jsonl --db ../demo/demo.sqlite && cd ..
 python3 loader/load_neo4j.py demo/demo_dataset.jsonl
@@ -57,7 +55,8 @@ python3 clustering/cluster_neo4j.py
 cd quality && python3 compare.py --db ../demo/demo.sqlite && cd ..
 ```
 
-This wipes Neo4j. The sampling is deterministic, so the same blocks give
+`load_neo4j.py` merges onto the existing graph, so empty Neo4j first
+(`MATCH (n) DETACH DELETE n` is enough on the demo). The sampling is deterministic, so the same blocks give
 the same dataset and the prepared queries always return the same rows.
 
 ## Why the sample is built this way

@@ -17,8 +17,8 @@ MAX_RETRIES = 5
 
 def fetch_daily_prices(days: int = 60) -> list[dict]:
     """Returns a list of {date_unix, price_usd}, one point per day.
-    date_unix is UTC midnight of the day the price refers to
-    (truncated from the millisecond timestamp returned by the API)."""
+    date_unix is the API timestamp in seconds: UTC midnight for the daily
+    points, except the last one, which is the current price."""
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             r = requests.get(

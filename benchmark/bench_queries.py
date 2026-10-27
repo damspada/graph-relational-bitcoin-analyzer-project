@@ -158,18 +158,21 @@ def _time_once_neo4j(driver, cypher: str, params: dict, timeout: float) -> float
     server-side timeout or silently ignores it (verified: it raises no
     error either with or without the parameter, an ambiguous
     behaviour). A client-side timeout is less elegant but verifiable:
-    if the thread does not finish in time, the session is closed (this
-    breaks the Bolt connection and therefore the query on the server side), and the
-    query is recorded as a timeout - symmetric to the progress handler
-    used on the SQLite side."""
+    if the thread does not finish in time the query is recorded as a
+    timeout, symmetric to the progress handler used on the SQLite side.
+    The thread is left running as a daemon (Python threads cannot be
+    cancelled), so the query may keep running on the server until it ends."""
     result_holder = {}
 
     def _run():
-        with driver.session() as session:
-            t0 = time.perf_counter()
-            result = session.run(cypher, **params)
-            result.consume()
-            result_holder["elapsed"] = time.perf_counter() - t0
+        try:
+            with driver.session() as session:
+                t0 = time.perf_counter()
+                result = session.run(cypher, **params)
+                result.consume()
+                result_holder["elapsed"] = time.perf_counter() - t0
+        except Exception as e:  # handed to the caller, see below
+            result_holder["error"] = e
 
     import threading
     thread = threading.Thread(target=_run, daemon=True)
@@ -184,8 +187,10 @@ def _time_once_neo4j(driver, cypher: str, params: dict, timeout: float) -> float
         # query without waiting any longer.
         raise _QueryTimeout(f"query did not complete within {timeout}s")
 
+    if "error" in result_holder:
+        raise result_holder["error"]
     if "elapsed" not in result_holder:
-        raise RuntimeError("thread finished without a result (error in the query?)")
+        raise RuntimeError("thread finished without a result")
     return result_holder["elapsed"]
 
 
