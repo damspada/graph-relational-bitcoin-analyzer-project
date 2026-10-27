@@ -67,7 +67,9 @@ YIELD nodePropertiesWritten, componentCount
 RETURN nodePropertiesWritten, componentCount
 """
 
-DROP_PROJECTION = "CALL gds.graph.drop('coowned_graph', false)"
+# YIELD only the name: without it the call returns every column, including
+# `schema`, which GDS has deprecated and warns about.
+DROP_PROJECTION = "CALL gds.graph.drop('coowned_graph', false) YIELD graphName"
 
 
 def build_coowned_edges(driver) -> int:
